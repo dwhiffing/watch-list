@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "watch-list",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "watch-list",
+      // Replace with the id printed by `npx wrangler d1 create watch-list`
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "REGION": "CA",
+    // Your Cloudflare Zero Trust team domain, e.g. "yourteam.cloudflareaccess.com"
+    "ACCESS_TEAM_DOMAIN": "",
+    // The Application Audience (AUD) tag from the Access application
+    "ACCESS_AUD": ""
+  },
+  "observability": { "enabled": true }
+}
