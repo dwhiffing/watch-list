@@ -4,6 +4,7 @@ import type {
   HistoryEntry,
   Member,
   MeResponse,
+  SessionInfo,
   SearchResult,
   SwipeChoice,
   Thumb,
@@ -12,12 +13,18 @@ import type {
   WatchlistItem,
 } from "../shared/types";
 import { interleave, latestEpisode, rankWatchlist } from "../shared/ranking";
-import { listDevEmails, resolveEmail } from "./auth";
+import {
+  clearCookieHeader,
+  isConfigured,
+  memberIdFromRequest,
+  passwordMatches,
+  sessionCookieHeader,
+  sessionToken,
+} from "./auth";
 import {
   castFor,
   enabledProviderIds,
   ensureDetails,
-  ensureMember,
   eventsFor,
   getTitle,
   inList,
@@ -46,10 +53,56 @@ app.onError((err, c) => {
   return c.json({ error: err.message || "Server error" }, 500);
 });
 
+// ---------- sign-in (no session needed) ----------
+
+const MAX_MEMBERS = 6;
+
+app.get("/session", async (c) => {
+  const body: SessionInfo = { configured: isConfigured(c.env), members: await listMembers(c.env.DB) };
+  return c.json(body);
+});
+
+app.post("/login", async (c) => {
+  if (!isConfigured(c.env)) return c.json({ error: "Set the APP_PASSWORD secret first (see README)." }, 503);
+  const { password, memberId, name } = await c.req.json<{ password?: string; memberId?: number; name?: string }>();
+  if (!passwordMatches(password ?? "", c.env)) {
+    await new Promise((r) => setTimeout(r, 500)); // slow down guessing a little
+    return c.json({ error: "Wrong password" }, 401);
+  }
+  const db = c.env.DB;
+  let member: Member | null = null;
+  if (memberId) {
+    member = await db.prepare("SELECT id, name FROM member WHERE id = ?").bind(memberId).first<Member>();
+  } else {
+    const clean = name?.trim().slice(0, 40);
+    if (!clean) return c.json({ error: "Pick your name or type a new one" }, 400);
+    member = await db.prepare("SELECT id, name FROM member WHERE login = ?").bind(clean.toLowerCase()).first<Member>();
+    if (!member) {
+      const count = await db.prepare("SELECT COUNT(*) AS n FROM member").first<{ n: number }>();
+      if ((count?.n ?? 0) >= MAX_MEMBERS) return c.json({ error: "Too many people already" }, 400);
+      member = await db
+        .prepare("INSERT INTO member (login, name) VALUES (?, ?) RETURNING id, name")
+        .bind(clean.toLowerCase(), clean)
+        .first<Member>();
+    }
+  }
+  if (!member) return c.json({ error: "Unknown person" }, 404);
+  c.header("Set-Cookie", sessionCookieHeader(await sessionToken(member.id, c.env), c.req.raw));
+  return c.json({ ok: true, me: member });
+});
+
+app.post("/logout", (c) => {
+  c.header("Set-Cookie", clearCookieHeader());
+  return c.json({ ok: true });
+});
+
+// ---------- everything below needs a session ----------
+
 app.use("*", async (c, next) => {
-  const email = await resolveEmail(c.req.raw, c.env);
-  if (!email) return c.json({ error: "Not signed in" }, 401);
-  c.set("me", await ensureMember(c.env.DB, email));
+  const id = await memberIdFromRequest(c.req.raw, c.env);
+  const me = id ? await c.env.DB.prepare("SELECT id, name FROM member WHERE id = ?").bind(id).first<Member>() : null;
+  if (!me) return c.json({ error: "Not signed in" }, 401);
+  c.set("me", me);
   c.set("tmdb", new Tmdb(c.env.TMDB_TOKEN, c.env.TMDB_API_BASE || undefined));
   await next();
 });
@@ -63,7 +116,6 @@ app.get("/me", async (c) => {
     me: c.get("me"),
     members: await listMembers(c.env.DB),
     region: region(c.env),
-    devEmails: listDevEmails(c.env),
   };
   return c.json(body);
 });
@@ -72,7 +124,11 @@ app.patch("/me", async (c) => {
   const { name } = await c.req.json<{ name?: string }>();
   const clean = name?.trim().slice(0, 40);
   if (!clean) return c.json({ error: "Name is required" }, 400);
-  await c.env.DB.prepare("UPDATE member SET name = ? WHERE id = ?").bind(clean, c.get("me").id).run();
+  const taken = await c.env.DB.prepare("SELECT id FROM member WHERE login = ? AND id != ?")
+    .bind(clean.toLowerCase(), c.get("me").id)
+    .first();
+  if (taken) return c.json({ error: "Someone already has that name" }, 400);
+  await c.env.DB.prepare("UPDATE member SET name = ?, login = ? WHERE id = ?").bind(clean, clean.toLowerCase(), c.get("me").id).run();
   return c.json({ ok: true });
 });
 

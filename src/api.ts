@@ -3,30 +3,13 @@ import type {
   HistoryEntry,
   MeResponse,
   SearchResult,
+  SessionInfo,
   StreamingService,
   SwipeChoice,
   Thumb,
   TitleDetail,
   WatchlistItem,
 } from "../shared/types";
-
-const DEV_EMAIL_KEY = "watchlist.devEmail";
-
-export function getDevEmail(): string | null {
-  try {
-    return localStorage.getItem(DEV_EMAIL_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setDevEmail(email: string) {
-  try {
-    localStorage.setItem(DEV_EMAIL_KEY, email);
-  } catch {
-    /* ignore */
-  }
-}
 
 export class ApiError extends Error {
   constructor(
@@ -40,8 +23,6 @@ export class ApiError extends Error {
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  const dev = getDevEmail();
-  if (dev) headers["x-dev-email"] = dev;
   const res = await fetch(`/api${path}`, {
     method,
     headers,
@@ -68,6 +49,9 @@ export interface DeckFilters {
 }
 
 export const api = {
+  session: () => request<SessionInfo>("GET", "/session"),
+  login: (password: string, who: { memberId: number } | { name: string }) => request("POST", "/login", { password, ...who }),
+  logout: () => request("POST", "/logout"),
   me: () => request<MeResponse>("GET", "/me"),
   rename: (name: string) => request("PATCH", "/me", { name }),
   genres: () => request<{ genres: string[] }>("GET", "/genres"),

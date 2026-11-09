@@ -7,6 +7,7 @@ import { Watchlist } from "./pages/Watchlist";
 import { Search } from "./pages/Search";
 import { Watched } from "./pages/Watched";
 import { Settings } from "./pages/Settings";
+import { Login } from "./pages/Login";
 import { TitlePage } from "./pages/TitlePage";
 import { Icon, type IconName } from "./components/Icon";
 
@@ -14,7 +15,6 @@ interface AppState {
   me: Member;
   members: Member[];
   region: string;
-  devEmails?: string[];
   services: StreamingService[];
   nameOf: (memberId: number) => string;
   partner: Member | null;
@@ -43,13 +43,16 @@ export function App() {
   const [meData, setMeData] = useState<MeResponse | null>(null);
   const [services, setServices] = useState<StreamingService[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [signedOut, setSignedOut] = useState(false);
 
   const reload = useCallback(async () => {
     try {
       setMeData(await api.me());
+      setSignedOut(false);
       setError(null);
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 401 ? "You're not signed in. Open the app through its Cloudflare Access link." : String((err as Error).message));
+      if (err instanceof ApiError && err.status === 401) setSignedOut(true);
+      else setError(String((err as Error).message));
     }
   }, []);
 
@@ -79,6 +82,16 @@ export function App() {
     };
   }, [meData, services, reload, reloadServices]);
 
+  if (signedOut) {
+    return (
+      <Login
+        onSignedIn={() => {
+          void reload();
+          void reloadServices();
+        }}
+      />
+    );
+  }
   if (error) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center text-muted">

@@ -5,7 +5,6 @@ export type Thumb = 1 | -1;
 export interface Member {
   id: number;
   name: string;
-  email: string;
 }
 
 export interface TitleSummary {
@@ -88,6 +87,11 @@ export interface MeResponse {
   me: Member;
   members: Member[];
   region: string;
-  /** Only set in local dev mode: emails you can switch between. */
-  devEmails?: string[];
+}
+
+export interface SessionInfo {
+  /** False until the APP_PASSWORD secret is set. */
+  configured: boolean;
+  /** People who have signed in before, so you can pick your name. */
+  members: Member[];
 }
