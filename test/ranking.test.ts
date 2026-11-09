@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baseScore, interleave, latestEpisode, nameFromEmail, nextEpisode, rankWatchlist } from "../shared/ranking";
+import { baseScore, interleave, latestEpisode, nextEpisode, rankWatchlist } from "../shared/ranking";
 
 describe("rankWatchlist", () => {
   const item = (name: string, wantedBy: number[], voteAverage: number, voteCount: number, addedAt = "2026-11-01") => ({
@@ -66,12 +66,5 @@ describe("episodes", () => {
     expect(nextEpisode(seasons, { season: 1, episode: 2 })).toEqual({ season: 1, episode: 3 });
     expect(nextEpisode(seasons, { season: 1, episode: 3 })).toEqual({ season: 2, episode: 1 });
     expect(nextEpisode(seasons, { season: 2, episode: 2 })).toBeNull();
-  });
-});
-
-describe("nameFromEmail", () => {
-  it("uses the first part of the address", () => {
-    expect(nameFromEmail("dan.smith@example.com")).toBe("Dan");
-    expect(nameFromEmail("alex@example.com")).toBe("Alex");
   });
 });

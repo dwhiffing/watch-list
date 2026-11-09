@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { api, getDevEmail, img, setDevEmail } from "../api";
+import { api, img } from "../api";
 import { useApp } from "../App";
 import { ErrorNote, PageHeader } from "../components/bits";
 
 export function Settings() {
-  const { me, members, services, region, devEmails, reload, reloadServices } = useApp();
+  const { me, members, services, region, reload, reloadServices } = useApp();
   const [name, setName] = useState(me.name);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +55,6 @@ export function Settings() {
             Save
           </button>
         </div>
-        <p className="mt-2 text-xs text-muted">Signed in as {me.email}</p>
       </section>
 
       <section className="px-4">
@@ -89,32 +88,27 @@ export function Settings() {
         <ul className="text-sm">
           {members.map((m) => (
             <li key={m.id} className="py-1">
-              {m.name} <span className="text-muted">({m.email})</span>
+              {m.name}
+              {m.id === me.id && <span className="text-muted"> (you)</span>}
             </li>
           ))}
         </ul>
-        {members.length < 2 && <p className="mt-1 text-xs text-muted">Your partner shows up here after their first sign-in.</p>}
+        {members.length < 2 && <p className="mt-1 text-xs text-muted">Your partner shows up here after they sign in for the first time.</p>}
       </section>
 
-      {devEmails && devEmails.length > 0 && (
-        <section className="px-4">
-          <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">Dev mode: act as</h2>
-          <div className="flex flex-wrap gap-2">
-            {devEmails.map((e) => (
-              <button
-                key={e}
-                onClick={() => {
-                  setDevEmail(e);
-                  window.location.reload();
-                }}
-                className={`rounded-full border px-3 py-1 text-sm ${(getDevEmail() ?? devEmails[0]) === e ? "border-accent text-accent" : "border-line text-muted"}`}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="px-4">
+        <button
+          onClick={async () => {
+            await api.logout();
+            window.location.hash = "#/discover";
+            window.location.reload();
+          }}
+          className="rounded-xl border border-line px-4 py-2 text-sm text-muted"
+        >
+          Sign out
+        </button>
+        <p className="mt-2 text-xs text-muted">Sign out to switch to the other person on this device.</p>
+      </section>
 
       <footer className="space-y-1 px-4 text-xs text-muted">
         <p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p>

@@ -7,11 +7,6 @@ export interface Env {
   TMDB_API_BASE?: string;
   /** Two-letter country code for streaming availability. */
   REGION: string;
-  ACCESS_TEAM_DOMAIN?: string;
-  ACCESS_AUD?: string;
-  /** Optional extra allow-list on top of the Access policy, comma-separated. */
-  ALLOWED_EMAILS?: string;
-  /** Local development only. */
-  DEV_MODE?: string;
-  DEV_EMAILS?: string;
+  /** Shared sign-in password (a secret: `wrangler secret put APP_PASSWORD`). */
+  APP_PASSWORD?: string;
 }

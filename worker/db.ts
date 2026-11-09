@@ -8,7 +8,6 @@ import type {
   TitleType,
   WatchEvent,
 } from "../shared/types";
-import { nameFromEmail } from "../shared/ranking";
 import { streamingProviderIds, type Tmdb, type TitleInput, type TmdbDetails } from "./tmdb";
 
 export interface TitleRow {
@@ -87,21 +86,8 @@ export function inList(n: number): string {
 
 // ---------- members ----------
 
-export async function ensureMember(db: D1Database, email: string): Promise<Member> {
-  const select = db.prepare("SELECT id, name, email FROM member WHERE email = ?").bind(email);
-  const existing = await select.first<Member>();
-  if (existing) return existing;
-  await db
-    .prepare("INSERT INTO member (email, name) VALUES (?, ?) ON CONFLICT(email) DO NOTHING")
-    .bind(email, nameFromEmail(email))
-    .run();
-  const row = await select.first<Member>();
-  if (!row) throw new Error("member insert failed");
-  return row;
-}
-
 export async function listMembers(db: D1Database): Promise<Member[]> {
-  const { results } = await db.prepare("SELECT id, name, email FROM member ORDER BY id").all<Member>();
+  const { results } = await db.prepare("SELECT id, name FROM member ORDER BY id").all<Member>();
   return results;
 }
 

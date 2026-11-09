@@ -17,11 +17,7 @@
     }
   ],
   "vars": {
-    "REGION": "CA",
-    // Your Cloudflare Zero Trust team domain, e.g. "yourteam.cloudflareaccess.com"
-    "ACCESS_TEAM_DOMAIN": "",
-    // The Application Audience (AUD) tag from the Access application
-    "ACCESS_AUD": ""
+    "REGION": "CA"
   },
   "observability": { "enabled": true }
 }

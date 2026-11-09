@@ -77,10 +77,3 @@ export function nextEpisode(
   const next = sorted[idx + 1];
   return next ? { season: next.season, episode: 1 } : null;
 }
-
-/** "dan.smith@example.com" -> "Dan" */
-export function nameFromEmail(email: string): string {
-  const local = email.split("@")[0] ?? email;
-  const first = local.split(/[._+-]/)[0] || local;
-  return first.charAt(0).toUpperCase() + first.slice(1);
-}

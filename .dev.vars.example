@@ -1,6 +1,5 @@
 # Copy to .dev.vars for local development.
 # TMDB "API Read Access Token" from https://www.themoviedb.org/settings/api
 TMDB_TOKEN=
-# Local dev only: skips Cloudflare Access and lets you switch between these users in Settings.
-DEV_MODE=true
-DEV_EMAILS=dan@example.com,partner@example.com
+# The password you both type to sign in.
+APP_PASSWORD=popcorn
