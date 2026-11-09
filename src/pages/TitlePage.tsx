@@ -3,8 +3,9 @@ import type { Thumb, TitleDetail } from "../../shared/types";
 import { nextEpisode } from "../../shared/ranking";
 import { api, img } from "../api";
 import { useApp } from "../App";
-import { ErrorNote, Meta, Poster, ServiceLogos, ThumbIcon, TypeBadge, WantedBy } from "../components/bits";
+import { ErrorNote, Meta, Poster, ThumbIcon, TypeBadge, WantedBy } from "../components/bits";
 import { Icon } from "../components/Icon";
+import { ServicesNote, TitleAbout } from "../components/TitleInfo";
 import { formatDate } from "./Watched";
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
@@ -54,20 +55,20 @@ export function TitlePage({ id }: { id: number }) {
   return (
     <div className="pb-10">
       <div className="relative">
-        {backdrop ? <img src={backdrop} alt="" className="h-52 w-full object-cover opacity-60" /> : <div className="h-24" />}
+        {backdrop ? <img src={backdrop} alt="" className="h-52 w-full object-cover opacity-60 md:mt-4 md:h-80 md:rounded-2xl" /> : <div className="h-24" />}
         <button
           onClick={() => (history.length > 1 ? history.back() : (window.location.hash = "#/discover"))}
-          className="absolute top-3 left-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/60"
+          className="absolute top-3 left-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 md:top-7 md:left-4"
           aria-label="Back"
         >
           <Icon name="back" />
         </button>
       </div>
 
-      <div className="-mt-16 flex gap-4 px-4">
-        <Poster title={t} size="w342" className="relative h-44 w-30 shrink-0 rounded-lg shadow-xl" />
+      <div className="-mt-16 flex gap-4 px-4 md:-mt-24 md:gap-6 md:px-6">
+        <Poster title={t} size="w342" className="relative h-44 w-30 shrink-0 rounded-lg shadow-xl md:h-64 md:w-44" />
         <div className="min-w-0 self-end">
-          <h1 className="text-2xl leading-tight font-bold">{t.name}</h1>
+          <h1 className="text-2xl leading-tight font-bold md:text-4xl">{t.name}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <TypeBadge type={t.type} />
             <Meta title={t} />
@@ -80,17 +81,11 @@ export function TitlePage({ id }: { id: number }) {
 
       <div className="mt-4 flex flex-wrap items-center gap-2 px-4">
         <WantedBy memberIds={wantedBy} />
-        {t.services.length > 0 ? (
-          <span className="flex items-center gap-2 text-xs text-muted">
-            On <ServiceLogos serviceIds={t.services} size="h-6 w-6" />
-          </span>
-        ) : (
-          <span className="text-xs text-muted">Not on your services</span>
-        )}
+        <ServicesNote serviceIds={t.services} />
       </div>
 
       {/* Actions */}
-      <div className="mt-4 grid grid-cols-2 gap-2 px-4">
+      <div className="mt-4 grid grid-cols-2 gap-2 px-4 md:max-w-md">
         <button
           onClick={() => void toggleWant()}
           className={`flex items-center justify-center gap-2 rounded-xl py-3 font-medium ${iWant ? "bg-want/20 text-want" : "bg-surface-2"}`}
@@ -105,7 +100,7 @@ export function TitlePage({ id }: { id: number }) {
       </div>
 
       {next && (
-        <div className="mx-4 mt-3 flex items-center justify-between rounded-xl border border-seen/40 bg-seen/10 px-4 py-3">
+        <div className="mx-4 mt-3 flex items-center justify-between rounded-xl border border-seen/40 bg-seen/10 px-4 py-3 md:max-w-md">
           <div className="text-sm">
             <div className="text-muted">{t.progress ? `Watched up to S${t.progress.season} E${t.progress.episode}` : "Not started"}</div>
             <div className="font-medium">
@@ -150,42 +145,13 @@ export function TitlePage({ id }: { id: number }) {
         </div>
       </section>
 
-      {t.overview && <p className="mt-6 px-4 leading-relaxed text-white/85">{t.overview}</p>}
-
-      {t.directors.length > 0 && (
-        <p className="mt-4 px-4 text-sm">
-          <span className="text-muted">{t.type === "tv" ? "Created by" : "Directed by"} </span>
-          {t.directors.join(", ")}
-        </p>
-      )}
-
-      {t.cast.length > 0 && (
-        <section className="mt-6">
-          <h2 className="mb-2 px-4 text-sm font-semibold tracking-wide text-muted uppercase">Cast</h2>
-          <ul className="no-scrollbar flex gap-3 overflow-x-auto px-4">
-            {t.cast.map((c) => {
-              const photo = img(c.profilePath, "w185");
-              return (
-                <li key={c.name} className="w-20 shrink-0 text-center">
-                  {photo ? (
-                    <img src={photo} alt="" loading="lazy" className="mx-auto h-20 w-20 rounded-full object-cover" />
-                  ) : (
-                    <div className="mx-auto h-20 w-20 rounded-full bg-surface-2" />
-                  )}
-                  <div className="mt-1 text-xs leading-tight">{c.name}</div>
-                  {c.character && <div className="text-[11px] leading-tight text-muted">{c.character}</div>}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      <TitleAbout title={t} />
 
       {/* Watch history for this title */}
       {t.events.length > 0 && (
         <section className="mt-6 px-4">
           <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">History</h2>
-          <ul className="space-y-1 text-sm">
+          <ul className="max-w-xl space-y-1 text-sm">
             {t.events.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-2">
                 <span>
@@ -244,8 +210,11 @@ function LogSheet({
   const toggleWho = (id: number) => setWho((w) => (w.includes(id) ? w.filter((x) => x !== id) : [...w, id]));
 
   return (
-    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/60" onClick={onClose}>
-      <div className="pb-safe w-full max-w-lg space-y-4 rounded-t-2xl bg-surface p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-20 flex animate-fade-in items-end justify-center bg-black/60 md:items-center md:p-6" onClick={onClose}>
+      <div
+        className="w-full max-w-lg animate-sheet-up space-y-4 rounded-t-2xl bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] motion-reduce:animate-none md:animate-pop-in md:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-lg font-semibold">Log {title.name}</h2>
 
         <div>

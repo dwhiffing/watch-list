@@ -13,7 +13,9 @@
       "database_name": "watch-list",
       // Replace with the id printed by `npx wrangler d1 create watch-list`
       "database_id": "22a3010c-046c-4ff5-9529-8cdc4e301bef",
-      "migrations_dir": "migrations"
+      "migrations_dir": "migrations",
+      // `npm run dev` reads and writes the real (deployed) database, not a local copy
+      "remote": true
     }
   ],
   "vars": {

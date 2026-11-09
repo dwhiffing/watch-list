@@ -75,26 +75,35 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name"
                 autoComplete="given-name"
+                autoFocus
                 className="mt-3 w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none focus:border-accent"
               />
             )}
           </div>
 
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            autoComplete="current-password"
-            className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none focus:border-accent"
-          />
+          {/* Ask for the password only once you've picked who you are */}
+          {who !== null && (
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              autoComplete="current-password"
+              autoFocus={who !== "new"}
+              className="w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none focus:border-accent"
+            />
+          )}
 
           {error && <p className="text-sm text-pass">{error}</p>}
 
-          <button type="submit" disabled={!ready || busy} className="w-full rounded-xl bg-accent py-3 font-semibold text-black disabled:opacity-40">
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
-          <p className="text-center text-xs text-muted">You'll stay signed in on this device.</p>
+          {who !== null && (
+            <>
+              <button type="submit" disabled={!ready || busy} className="w-full rounded-xl bg-accent py-3 font-semibold text-black disabled:opacity-40">
+                {busy ? "Signing in…" : "Sign in"}
+              </button>
+              <p className="text-center text-xs text-muted">You'll stay signed in on this device.</p>
+            </>
+          )}
         </form>
       )}
     </div>

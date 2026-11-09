@@ -23,7 +23,7 @@ export function Watched() {
       {error && <ErrorNote error={error} />}
       {!entries && !error && <Empty>Loading…</Empty>}
       {entries?.length === 0 && <Empty>Nothing logged yet. Mark something as watched, or swipe up on a card you've already seen.</Empty>}
-      <ul>
+      <ul className="md:grid lg:grid-cols-2 md:gap-x-4">
         {entries?.map(({ event, title, ratings }) => {
           const everyone = members.length > 1 && members.every((m) => event.memberIds.includes(m.id));
           return (

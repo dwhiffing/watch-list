@@ -27,6 +27,7 @@ export interface TitleRow {
   popularity: number | null;
   seasons: string | null;
   details_at: string | null;
+  refreshed_at: string;
 }
 
 interface WatchEventRow {
@@ -39,6 +40,7 @@ interface WatchEventRow {
   is_rewatch: number;
 }
 
+const LIST_MAX_AGE_DAYS = 1; // how often list-level fields (votes, popularity, posters) get rewritten
 const DETAILS_MAX_AGE_DAYS = 7;
 const AVAILABILITY_MAX_AGE_DAYS = 3;
 
@@ -93,9 +95,38 @@ export async function listMembers(db: D1Database): Promise<Member[]> {
 
 // ---------- titles ----------
 
-/** Insert or refresh list-level fields for many titles. Returns rows in the same order. */
+/**
+ * Insert or refresh list-level fields for many titles. Returns rows in the same order.
+ * Titles already stored and refreshed within LIST_MAX_AGE_DAYS are only read, not rewritten,
+ * since D1 writes are the scarcest part of the free tier.
+ */
 export async function upsertTitles(db: D1Database, inputs: TitleInput[]): Promise<TitleRow[]> {
   if (inputs.length === 0) return [];
+  const key = (type: TitleType, tmdbId: number) => `${type}:${tmdbId}`;
+  const rows = new Map<string, TitleRow>();
+  const tmdbIds = [...new Set(inputs.map((t) => t.tmdbId))];
+  for (let i = 0; i < tmdbIds.length; i += 90) {
+    // D1 allows 100 bound parameters per query
+    const chunk = tmdbIds.slice(i, i + 90);
+    const { results } = await db
+      .prepare(`SELECT * FROM title WHERE tmdb_id IN (${inList(chunk.length)})`)
+      .bind(...chunk)
+      .all<TitleRow>();
+    for (const r of results) rows.set(key(r.type, r.tmdb_id), r);
+  }
+
+  const toWrite = new Map<string, TitleInput>();
+  for (const t of inputs) {
+    const existing = rows.get(key(t.type, t.tmdbId));
+    if (!existing || isStale(existing.refreshed_at, LIST_MAX_AGE_DAYS)) toWrite.set(key(t.type, t.tmdbId), t);
+  }
+  if (toWrite.size > 0) {
+    for (const row of await writeTitles(db, [...toWrite.values()])) rows.set(key(row.type, row.tmdb_id), row);
+  }
+  return inputs.map((t) => rows.get(key(t.type, t.tmdbId))!);
+}
+
+async function writeTitles(db: D1Database, inputs: TitleInput[]): Promise<TitleRow[]> {
   const stmt = db.prepare(
     `INSERT INTO title (tmdb_id, type, name, year, overview, poster_path, backdrop_path, genres, vote_average, vote_count, popularity, refreshed_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))

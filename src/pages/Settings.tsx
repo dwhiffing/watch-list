@@ -35,7 +35,7 @@ export function Settings() {
   };
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-6 pb-10 md:max-w-xl">
       <PageHeader title="Settings" />
       {error && <ErrorNote error={error} />}
 

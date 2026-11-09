@@ -30,9 +30,11 @@ Code layout:
 ```sh
 npm install
 cp .dev.vars.example .dev.vars      # add your TMDB token, or use the mock below
-npm run db:migrate:local
+npx wrangler login                   # dev talks to the deployed D1 database
 npm run dev                          # http://localhost:5173
 ```
+
+The `DB` binding in `wrangler.jsonc` has `"remote": true`, so local dev reads and writes the **real** database: anything you swipe or log locally shows up in the deployed app. Apply new migrations with `npm run db:migrate:remote`. To work against a throwaway local copy instead, remove `"remote": true` and run `npm run db:migrate:local`.
 
 No TMDB key yet? Run the mock and point the app at it:
 

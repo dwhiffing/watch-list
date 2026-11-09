@@ -58,19 +58,58 @@ export interface TitleInput {
 }
 
 export class Tmdb {
-  private genreCache = new Map<TitleType, Map<number, string>>();
+  // Holds the in-flight promise so parallel normalize() calls share one request.
+  private genreCache = new Map<TitleType, Promise<Map<number, string>>>();
 
   constructor(
     private token: string,
     private base: string = DEFAULT_BASE,
+    private cache?: D1Database,
   ) {}
 
+  /**
+   * GET with a shared response cache in D1 (the tmdb_cache table), so every request and every
+   * device reuses the same TMDB answer until it expires. Cache trouble never breaks the request.
+   */
   async get<T>(path: string, params: Record<string, string | number | undefined> = {}, cacheTtl = 60 * 60 * 6): Promise<T> {
+    const url = this.url(path, params);
+    if (!this.cache) return this.request<T>(url, path, cacheTtl);
+    const key = url.slice(this.base.length);
+    try {
+      const hit = await this.cache
+        .prepare("SELECT body FROM tmdb_cache WHERE key = ? AND expires_at > datetime('now')")
+        .bind(key)
+        .first<{ body: string }>();
+      if (hit) return JSON.parse(hit.body) as T;
+    } catch {
+      /* fall through to TMDB */
+    }
+    const data = await this.request<T>(url, path, cacheTtl);
+    try {
+      await this.cache.batch([
+        this.cache
+          .prepare("INSERT OR REPLACE INTO tmdb_cache (key, body, expires_at) VALUES (?, ?, datetime('now', ?))")
+          .bind(key, JSON.stringify(data), `+${cacheTtl} seconds`),
+        // Expired rows are cleared out as new ones are written, so the table stays small.
+        this.cache.prepare("DELETE FROM tmdb_cache WHERE expires_at <= datetime('now')"),
+      ]);
+    } catch {
+      /* caching is best effort */
+    }
+    return data;
+  }
+
+  private url(path: string, params: Record<string, string | number | undefined>): string {
     const url = new URL(this.base + path);
-    for (const [k, v] of Object.entries(params)) {
+    for (const [k, v] of Object.entries(params).sort(([a], [b]) => a.localeCompare(b))) {
       if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
     }
-    const res = await fetch(url.toString(), {
+    return url.toString();
+  }
+
+  /** Straight to TMDB, skipping the D1 cache. For per-title data the app already stores in its own tables. */
+  private async request<T>(url: string, path: string, cacheTtl = 60 * 60 * 6): Promise<T> {
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json" },
       cf: { cacheTtl, cacheEverything: true },
     } as RequestInit);
@@ -80,13 +119,15 @@ export class Tmdb {
     return (await res.json()) as T;
   }
 
-  async genres(type: TitleType): Promise<Map<number, string>> {
+  genres(type: TitleType): Promise<Map<number, string>> {
     const cached = this.genreCache.get(type);
     if (cached) return cached;
-    const data = await this.get<{ genres: { id: number; name: string }[] }>(`/genre/${type}/list`, {}, 60 * 60 * 24 * 7);
-    const map = new Map(data.genres.map((g) => [g.id, g.name]));
-    this.genreCache.set(type, map);
-    return map;
+    const pending = this.get<{ genres: { id: number; name: string }[] }>(`/genre/${type}/list`, {}, 60 * 60 * 24 * 7).then(
+      (data) => new Map(data.genres.map((g) => [g.id, g.name])),
+    );
+    pending.catch(() => this.genreCache.delete(type)); // let a later call retry
+    this.genreCache.set(type, pending);
+    return pending;
   }
 
   async normalize(item: TmdbListItem, type: TitleType): Promise<TitleInput> {
@@ -108,14 +149,15 @@ export class Tmdb {
     };
   }
 
+  // Details and providers are saved into the title tables (with their own refresh ages), so they skip tmdb_cache.
   details(type: TitleType, tmdbId: number): Promise<TmdbDetails> {
-    return this.get<TmdbDetails>(`/${type}/${tmdbId}`, {
-      append_to_response: "credits,keywords,watch/providers",
-    });
+    const path = `/${type}/${tmdbId}`;
+    return this.request<TmdbDetails>(this.url(path, { append_to_response: "credits,keywords,watch/providers" }), path);
   }
 
   providers(type: TitleType, tmdbId: number): Promise<TmdbProviders> {
-    return this.get<TmdbProviders>(`/${type}/${tmdbId}/watch/providers`, {}, 60 * 60 * 24);
+    const path = `/${type}/${tmdbId}/watch/providers`;
+    return this.request<TmdbProviders>(this.url(path, {}), path, 60 * 60 * 24);
   }
 }
 

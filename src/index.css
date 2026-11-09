@@ -10,6 +10,28 @@
   --color-want: #3ecf8e;
   --color-pass: #f26b6b;
   --color-seen: #6aa8ff;
+
+  /* Sheets and dialogs: backdrop fades, sheet slides up on phones, dialog pops in on desktop */
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-sheet-up: sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-pop-in: pop-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.97);
+    }
+  }
 }
 
 html,

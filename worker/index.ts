@@ -103,7 +103,7 @@ app.use("*", async (c, next) => {
   const me = id ? await c.env.DB.prepare("SELECT id, name FROM member WHERE id = ?").bind(id).first<Member>() : null;
   if (!me) return c.json({ error: "Not signed in" }, 401);
   c.set("me", me);
-  c.set("tmdb", new Tmdb(c.env.TMDB_TOKEN, c.env.TMDB_API_BASE || undefined));
+  c.set("tmdb", new Tmdb(c.env.TMDB_TOKEN, c.env.TMDB_API_BASE || undefined, c.env.DB));
   await next();
 });
 
@@ -138,6 +138,7 @@ app.get("/genres", async (c) => {
   const tmdb = c.get("tmdb");
   const [movie, tv] = await Promise.all([tmdb.genres("movie"), tmdb.genres("tv")]);
   const names = [...new Set([...movie.values(), ...tv.values()])].sort();
+  c.header("Cache-Control", "private, max-age=86400"); // the genre list barely changes; let the browser keep it
   return c.json({ genres: names });
 });
 
@@ -217,7 +218,7 @@ app.get("/deck", async (c) => {
             params.with_watch_providers = providerIds.join("|");
             params.with_watch_monetization_types = "flatrate|ads";
           }
-          const data = await tmdb.get<TmdbPage>(`/discover/${t}`, params);
+          const data = await tmdb.get<TmdbPage>(`/discover/${t}`, params, 60 * 60 * 12);
           return { data, type: t };
         }),
       ),
@@ -408,7 +409,7 @@ app.get("/search", async (c) => {
   const db = c.env.DB;
   const me = c.get("me");
   const tmdb = c.get("tmdb");
-  const data = await tmdb.get<TmdbPage>("/search/multi", { query: q, include_adult: "false" }, 60 * 30);
+  const data = await tmdb.get<TmdbPage>("/search/multi", { query: q.toLowerCase(), include_adult: "false" }, 60 * 60 * 24);
   const items = data.results.filter((r) => r.media_type === "movie" || r.media_type === "tv").slice(0, 20);
   const inputs = await Promise.all(items.map((r) => tmdb.normalize(r, r.media_type as TitleType)));
   const rows = await upsertTitles(db, inputs);

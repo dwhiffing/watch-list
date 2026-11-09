@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import type { DeckCard, SwipeChoice, Thumb } from "../../shared/types";
+import type { DeckCard, SwipeChoice, Thumb, TitleDetail } from "../../shared/types";
 import { api, img, type DeckFilters } from "../api";
 import { useApp } from "../App";
-import { navigate } from "../router";
-import { Chip, ErrorNote, Meta, TypeBadge, WantedBy } from "../components/bits";
+import { useRoute } from "../router";
+import { Chip, ErrorNote, Meta, Poster, TypeBadge, WantedBy } from "../components/bits";
 import { Icon } from "../components/Icon";
+import { ServicesNote, TitleAbout } from "../components/TitleInfo";
 
 const FILTER_KEY = "watchlist.deckFilters";
 const SWIPE_DISTANCE = 100;
@@ -26,6 +27,7 @@ interface Done {
 
 export function Discover() {
   const { partner } = useApp();
+  const route = useRoute();
   const [filters, setFilters] = useState<DeckFilters>(loadFilters);
   const [cards, setCards] = useState<DeckCard[]>([]);
   const [loading, setLoading] = useState(false);
@@ -36,6 +38,7 @@ export function Discover() {
   const [toast, setToast] = useState<string | null>(null);
   const [genres, setGenres] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [info, setInfo] = useState<DeckCard | null>(null);
   const loadingRef = useRef(false);
   const cardsRef = useRef<DeckCard[]>([]);
   cardsRef.current = cards;
@@ -132,6 +135,33 @@ export function Discover() {
   };
 
   const top = cards[0];
+
+  // Keyboard shortcuts for desktop. Discover stays mounted on other pages, so only listen while it's showing.
+  const keys = useRef({ top, askThumb, info, decide, undo, answerThumb });
+  keys.current = { top, askThumb, info, decide, undo, answerThumb };
+  useEffect(() => {
+    if (route.name !== "discover") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement).closest("input, textarea, select")) return;
+      const k = keys.current;
+      const action = k.info
+        ? { Escape: () => setInfo(null), Enter: () => setInfo(null) }[e.key]
+        : k.askThumb
+          ? { ArrowUp: () => k.answerThumb(1), ArrowDown: () => k.answerThumb(-1), Escape: () => k.answerThumb(null) }[e.key]
+          : {
+              ArrowLeft: () => k.top && k.decide(k.top, "pass"),
+              ArrowRight: () => k.top && k.decide(k.top, "want"),
+              ArrowUp: () => k.top && k.decide(k.top, "seen"),
+              z: () => void k.undo(),
+              Enter: () => k.top && setInfo(k.top),
+            }[e.key];
+      if (!action) return;
+      e.preventDefault();
+      action();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [route.name]);
   const activeFilterCount = (filters.media !== "all" ? 1 : 0) + (filters.genre ? 1 : 0) + (filters.services ? 1 : 0);
 
   return (
@@ -170,12 +200,13 @@ export function Discover() {
 
       {error && <ErrorNote error={error} onRetry={() => void loadMore()} />}
 
-      <div className="relative mx-4 min-h-0 flex-1">
+      {/* On desktop the card keeps a poster's 2:3 shape instead of stretching to the window */}
+      <div className="relative mx-4 min-h-0 flex-1 md:mx-auto md:aspect-2/3 md:max-w-full">
         {cards
           .slice(0, 3)
           .reverse()
           .map((card) => (
-            <SwipeCard key={card.id} card={card} isTop={card.id === top?.id} onDecide={(choice) => decide(card, choice)} />
+            <SwipeCard key={card.id} card={card} isTop={card.id === top?.id} onDecide={(choice) => decide(card, choice)} onOpen={() => setInfo(card)} />
           ))}
         {!top && (
           <div className="flex h-full items-center justify-center text-center text-muted">
@@ -184,37 +215,48 @@ export function Discover() {
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-5 py-4">
-        <RoundButton label="Undo" onClick={() => void undo()} disabled={history.length === 0} small>
+      <div className="flex items-start justify-center gap-2 py-4 md:gap-4">
+        <RoundButton label="Undo" shortcut="Z" onClick={() => void undo()} disabled={history.length === 0} small>
           <Icon name="undo" />
         </RoundButton>
-        <RoundButton label="Pass" onClick={() => top && decide(top, "pass")} disabled={!top} color="text-pass">
-          <Icon name="x" className="h-7 w-7" />
+        <RoundButton label="Pass" shortcut="←" onClick={() => top && decide(top, "pass")} disabled={!top} color="text-pass">
+          <Icon name="down" className="h-7 w-7" />
         </RoundButton>
-        <RoundButton label="Seen it" onClick={() => top && decide(top, "seen")} disabled={!top} color="text-seen">
+        <RoundButton label="Seen" shortcut="↑" onClick={() => top && decide(top, "seen")} disabled={!top} color="text-seen">
           <Icon name="eye" className="h-7 w-7" />
         </RoundButton>
-        <RoundButton label="Want" onClick={() => top && decide(top, "want")} disabled={!top} color="text-want">
-          <Icon name="heart" className="h-7 w-7" />
+        <RoundButton label="Add" shortcut="→" onClick={() => top && decide(top, "want")} disabled={!top} color="text-want">
+          <Icon name="up" className="h-7 w-7" />
         </RoundButton>
-        <RoundButton label="Details" onClick={() => top && navigate({ name: "title", id: top.id })} disabled={!top} small>
+        <RoundButton
+          label="Info"
+          shortcut="Enter"
+          onClick={() => top && setInfo(top)}
+          onPrefetch={() => top && void loadDetail(top.id).catch(() => {})}
+          disabled={!top}
+          small
+        >
           <Icon name="info" />
         </RoundButton>
       </div>
+      <p className="hidden pb-4 text-center text-xs text-muted md:block">← Pass · ↑ Seen · → Add · Z undo · Enter info</p>
 
       {askThumb && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/60" onClick={() => answerThumb(null)}>
-          <div className="pb-safe w-full max-w-lg rounded-t-2xl bg-surface p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-20 flex animate-fade-in items-end justify-center bg-black/60 md:items-center md:p-6" onClick={() => answerThumb(null)}>
+          <div
+            className="w-full max-w-lg animate-sheet-up rounded-t-2xl bg-surface p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] motion-reduce:animate-none md:max-w-md md:animate-pop-in md:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <p className="mb-1 text-sm text-muted">You've seen</p>
             <p className="mb-5 text-lg font-semibold">{askThumb.name}</p>
             <div className="grid grid-cols-3 gap-3">
               <button onClick={() => answerThumb(1)} className="flex flex-col items-center gap-2 rounded-xl bg-want/15 py-4 text-want">
                 <Icon name="up" className="h-7 w-7" />
-                Liked it
+                Like
               </button>
               <button onClick={() => answerThumb(-1)} className="flex flex-col items-center gap-2 rounded-xl bg-pass/15 py-4 text-pass">
                 <Icon name="down" className="h-7 w-7" />
-                Didn't
+                Dislike
               </button>
               <button onClick={() => answerThumb(null)} className="flex flex-col items-center gap-2 rounded-xl bg-surface-2 py-4 text-muted">
                 <Icon name="x" className="h-7 w-7" />
@@ -224,6 +266,8 @@ export function Discover() {
           </div>
         </div>
       )}
+
+      {info && <InfoSheet card={info} onClose={() => setInfo(null)} />}
 
       {toast && (
         <div className="fixed inset-x-4 top-6 z-30 mx-auto max-w-md rounded-xl bg-want px-4 py-3 text-center font-medium text-black shadow-lg">{toast}</div>
@@ -238,35 +282,166 @@ export function Discover() {
 
 function RoundButton({
   label,
+  shortcut,
   onClick,
+  onPrefetch,
   disabled,
   color = "text-muted",
   small,
   children,
 }: {
   label: string;
+  shortcut?: string;
   onClick: () => void;
+  /** Called on hover or press, before the click lands */
+  onPrefetch?: () => void;
   disabled?: boolean;
   color?: string;
   small?: boolean;
   children: React.ReactNode;
 }) {
   return (
+    // Every button sits in a same-height slot so the captions line up whatever the button size.
     <button
-      aria-label={label}
-      title={label}
+      title={shortcut ? `${label} (${shortcut})` : label}
       onClick={onClick}
+      onPointerEnter={onPrefetch}
+      onPointerDown={onPrefetch}
       disabled={disabled}
-      className={`flex items-center justify-center rounded-full border border-line bg-surface shadow-md transition active:scale-90 disabled:opacity-30 ${color} ${
-        small ? "h-11 w-11" : "h-16 w-16"
-      }`}
+      className={`group flex w-16 flex-col items-center gap-1.5 disabled:opacity-30 ${color}`}
     >
-      {children}
+      <span className="flex h-16 items-center">
+        <span
+          className={`flex items-center justify-center rounded-full border border-line bg-surface shadow-md transition group-active:scale-90 ${
+            small ? "h-11 w-11" : "h-16 w-16"
+          }`}
+        >
+          {children}
+        </span>
+      </span>
+      <span className="text-center text-[11px] leading-tight text-muted">{label}</span>
     </button>
   );
 }
 
-function SwipeCard({ card, isTop, onDecide }: { card: DeckCard; isTop: boolean; onDecide: (choice: SwipeChoice) => void }) {
+/** Just the facts about a card (no actions or ratings), so you can decide without leaving the deck. */
+// Title details already fetched this session, so reopening (or opening after a hover prefetch) is instant.
+const detailCache = new Map<number, Promise<TitleDetail>>();
+function loadDetail(id: number): Promise<TitleDetail> {
+  let p = detailCache.get(id);
+  if (!p) {
+    p = api.title(id);
+    p.catch(() => detailCache.delete(id)); // let a later open retry
+    detailCache.set(id, p);
+  }
+  return p;
+}
+
+function InfoSheet({ card, onClose }: { card: DeckCard; onClose: () => void }) {
+  const [detail, setDetail] = useState<TitleDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [backdropLoaded, setBackdropLoaded] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    loadDetail(card.id).then(
+      (t) => live && setDetail(t),
+      (err: Error) => live && setError(err.message),
+    );
+    return () => {
+      live = false;
+    };
+  }, [card.id]);
+
+  // Show what the card already knows straight away; details fill in when they load.
+  const t = detail ?? card;
+  const backdrop = img(card.backdropPath, "w780");
+
+  return (
+    <div className="fixed inset-0 z-20 flex animate-fade-in items-end justify-center bg-black/60 md:items-center md:p-6" onClick={onClose}>
+      <div
+        className="relative max-h-[90dvh] w-full max-w-lg animate-sheet-up overflow-y-auto overscroll-contain rounded-t-2xl bg-surface pb-[calc(1.5rem+env(safe-area-inset-bottom))] motion-reduce:animate-none md:max-w-2xl md:animate-pop-in md:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 -mb-16 flex justify-end p-3">
+          <button onClick={onClose} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60">
+            <Icon name="x" />
+          </button>
+        </div>
+        {backdrop ? (
+          <div className="h-40 bg-surface-2 md:h-56">
+            <img
+              src={backdrop}
+              alt=""
+              onLoad={() => setBackdropLoaded(true)}
+              className={`h-full w-full object-cover transition-opacity duration-300 ${backdropLoaded ? "opacity-60" : "opacity-0"}`}
+            />
+          </div>
+        ) : (
+          <div className="h-20" />
+        )}
+
+        <div className="-mt-12 flex gap-4 px-4">
+          {/* Same image size as the card, so it's already in the browser cache */}
+          <Poster title={t} size="w500" className="relative h-36 w-24 shrink-0 rounded-lg shadow-xl md:h-48 md:w-32" />
+          <div className="min-w-0 self-end">
+            <h2 className="text-xl leading-tight font-bold md:text-2xl">{t.name}</h2>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <TypeBadge type={t.type} />
+              <Meta title={t} />
+            </div>
+            {t.genres.length > 0 && <p className="mt-1 text-sm text-muted">{t.genres.join(", ")}</p>}
+          </div>
+        </div>
+
+        {error && <ErrorNote error={error} />}
+        {detail ? (
+          <>
+            <div className="mt-4 px-4">
+              <ServicesNote serviceIds={detail.services} />
+            </div>
+            <TitleAbout title={detail} />
+          </>
+        ) : (
+          !error && <DetailSkeleton />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Roughly the shape of the services line, overview and cast, so the sheet doesn't jump when they arrive. */
+function DetailSkeleton() {
+  return (
+    <div className="animate-pulse" aria-label="Loading">
+      <div className="mt-4 h-6 w-40 rounded bg-surface-2 mx-4" />
+      <div className="mt-6 space-y-2 px-4">
+        <div className="h-4 rounded bg-surface-2" />
+        <div className="h-4 rounded bg-surface-2" />
+        <div className="h-4 w-2/3 rounded bg-surface-2" />
+      </div>
+      <div className="mt-4 h-4 w-48 rounded bg-surface-2 mx-4" />
+      <div className="mt-8 h-4 w-12 rounded bg-surface-2 mx-4" />
+      <div className="mt-3 flex gap-3 overflow-hidden px-4">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="h-20 w-20 shrink-0 rounded-full bg-surface-2" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SwipeCard({
+  card,
+  isTop,
+  onDecide,
+  onOpen,
+}: {
+  card: DeckCard;
+  isTop: boolean;
+  onDecide: (choice: SwipeChoice) => void;
+  onOpen: () => void;
+}) {
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
   const [leaving, setLeaving] = useState<SwipeChoice | null>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
@@ -299,7 +474,7 @@ function SwipeCard({ card, isTop, onDecide }: { card: DeckCard; isTop: boolean; 
       window.setTimeout(() => onDecide(choice), 180);
     } else {
       setDrag({ x: 0, y: 0, active: false });
-      if (!moved.current) navigate({ name: "title", id: card.id });
+      if (!moved.current) onOpen();
     }
   };
 

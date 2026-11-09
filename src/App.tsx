@@ -110,29 +110,40 @@ export function App() {
 
   return (
     <AppContext.Provider value={state}>
-      <div className="mx-auto flex h-full max-w-lg flex-col">
+      {/* Phone: tab bar along the bottom. Desktop (md+): sidebar on the left. */}
+      <div className="mx-auto flex h-full max-w-lg flex-col md:max-w-7xl md:flex-row">
         <main className="pt-safe min-h-0 flex-1 overflow-y-auto">
           {/* Discover stays mounted so the deck keeps its place while you look at a title */}
           <div className={route.name === "discover" ? "h-full" : "hidden"}>
             <Discover />
           </div>
-          {route.name === "watchlist" && <Watchlist />}
-          {route.name === "search" && <Search />}
-          {route.name === "watched" && <Watched />}
-          {route.name === "settings" && <Settings />}
-          {route.name === "title" && <TitlePage key={route.id} id={route.id} />}
+          {route.name !== "discover" && (
+            <div className="mx-auto w-full max-w-5xl md:px-4">
+              {route.name === "watchlist" && <Watchlist />}
+              {route.name === "search" && <Search />}
+              {route.name === "watched" && <Watched />}
+              {route.name === "settings" && <Settings />}
+              {route.name === "title" && <TitlePage key={route.id} id={route.id} />}
+            </div>
+          )}
         </main>
-        <nav className="pb-safe border-t border-line bg-bg/95 backdrop-blur">
-          <ul className="flex">
+        <nav className="pb-safe border-t border-line bg-bg/95 backdrop-blur md:order-first md:w-56 md:shrink-0 md:border-t-0 md:border-r md:px-3 md:pb-0">
+          <a href={href({ name: "discover" })} className="hidden items-center gap-3 px-3 pt-6 pb-8 md:flex">
+            <img src="/icon.svg" alt="" className="h-8 w-8" />
+            <span className="text-lg font-bold">Watch List</span>
+          </a>
+          <ul className="flex md:flex-col md:gap-1">
             {tabs.map((t) => {
               const active = activeTab === t.route.name;
               return (
-                <li key={t.label} className="flex-1">
+                <li key={t.label} className="flex-1 md:flex-none">
                   <a
                     href={href(t.route)}
-                    className={`flex flex-col items-center gap-1 py-2 text-[11px] ${active ? "text-accent" : "text-muted"}`}
+                    className={`flex flex-col items-center gap-1 py-2 text-[11px] md:flex-row md:gap-3 md:rounded-lg md:px-3 md:py-2.5 md:text-sm md:font-medium ${
+                      active ? "text-accent md:bg-accent/10" : "text-muted md:hover:bg-surface md:hover:text-white"
+                    }`}
                   >
-                    <Icon name={t.icon} className="h-6 w-6" />
+                    <Icon name={t.icon} className="h-6 w-6 md:h-5 md:w-5" />
                     {t.label}
                   </a>
                 </li>

@@ -14,7 +14,7 @@ export function Search() {
 
   useEffect(() => {
     const query = q.trim();
-    if (!query) {
+    if (query.length < 2) {
       setResults([]);
       return;
     }
@@ -48,7 +48,7 @@ export function Search() {
   return (
     <div className="pb-6">
       <PageHeader title="Search" />
-      <div className="px-4 pb-3">
+      <div className="px-4 pb-3 md:max-w-xl">
         <input
           autoFocus
           type="search"
@@ -60,8 +60,8 @@ export function Search() {
       </div>
       {error && <ErrorNote error={error} />}
       {loading && results.length === 0 && <Empty>Searching…</Empty>}
-      {!loading && q.trim() && results.length === 0 && !error && <Empty>No matches.</Empty>}
-      <ul>
+      {!loading && q.trim().length >= 2 && results.length === 0 && !error && <Empty>No matches.</Empty>}
+      <ul className="md:grid md:grid-cols-2 md:gap-x-4">
         {results.map((r) => (
           <li key={r.id} className="flex items-center gap-3 border-b border-line/60 px-4 py-3">
             <a href={href({ name: "title", id: r.id })} className="flex min-w-0 flex-1 items-center gap-3">
